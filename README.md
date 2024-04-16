@@ -1,2 +1,2 @@
-# understanding_resilience_in_sca6
-Understanding resilience in SCA6
+# Understanding resilience in SCA6
+This repository hosts the code used for bulk RNA-seq data analysis.
