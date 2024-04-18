@@ -3,6 +3,6 @@ This repository hosts the code used for bulk RNA-seq data analysis starting from
 
 **A) [Data Pre-processing](A_PREPROCESSING.md)**
 
-B) Differential Gene Expression
+**B) [Differential Gene Expression]()**
 
-C) WGCNA
+**C) [WGCNA]()**
