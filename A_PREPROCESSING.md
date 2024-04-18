@@ -1,6 +1,6 @@
-**PRE-PROCESSING**
+# PRE-PROCESSING
 
-**Reads QC**
+## Reads QC
 ```{bash}
 module add fastqc/0.11.8
 
@@ -20,7 +20,7 @@ echo "Finished FASTQC"
 
 &nbsp;
 
-**Reads Trimming**
+## Reads Trimming
 ```{bash}
 WORKDIR="path_to_working_directory"
 FQDIR="path_to_fastq_files"
@@ -59,7 +59,7 @@ echo "Finished TRIMMOMATIC"
 
 &nbsp;
 
-**Reads Alignment**
+## Reads Alignment
 ```{bash}
 module add star/2.5.2b
 
@@ -89,7 +89,127 @@ echo "Running STAR"
 
 &nbsp;
 
-**BAM Filtering**
+## BAM Filtering
 ```{bash}
+module add samtools
+module add RSeQC/2.6.4
+
+WORKDIR="path_to_working_directory"
+FQDIR="path_to_fastq_files"
+TRIMDIR="path_to_trimmed_fastq_files"
+STARDIR="path_to_star_alignment_output"
+
+echo "Filtering BAM"
+
+cd ${STARDIR}
+
+## Multimapped reads
+echo "=====> Listing multimapped reads"
+mkdir MULTIMAPPEDREADS/
+for file in `ls *Aligned.sortedByCoord.out.bam`
+ do
+  echo ${file}
+  outputname=`basename ${file} | sed -e "s/Aligned.sortedByCoord.out.bam/.MultiMappedReads.txt/"`
+  echo ${outputname}
+  samtools view ${file} | grep -v NH:i:1 | perl -pe 's/AS.+(NH:i:\d+)/\$1/' | cut -f1,10,12 | perl -pe 's/NH:i://' | sort -u -k3,3nr > MULTIMAPPEDREADS/${outputname}
+done
+echo "=====> Finished listing multimapped reads"
+
+
+## Fetch only primary alignment (remove unmapped,chimeric etc etc)
+echo "=====> Fetching primary alignment reads"
+for file in `ls *Aligned.sortedByCoord.out.bam`
+ do
+  echo ${file}
+  outputname=`basename ${file} | sed -e "s/Aligned.sortedByCoord.out.bam/.Primary.bam/"`
+  echo ${outputname}
+  samtools view -F 256 -b ${file} > ${outputname}
+ done
+echo "=====> Finished fetching primary alignment"
+
+
+## Split Primary alignment in rRNA (in.bam) and non rRNA (ex.bam)
+echo "=====> Splitting rRNA reads"
+for file in `ls *.Primary.bam`
+ do
+  samname=`basename ${file} | sed -e "s/.Primary//"`
+  split_bam.py -i ${file} -r /work/RESOURCES/DATABASES/MM10_GRCm38p6_GENCODEvM17_STAR/mm10_rRNA.bed -o "${samname}"
+  echo $samname
+ done
+echo "=====> Finished splitting rRNA reads"
+
+rm *.junk.bam
+
+
+## Get uniquely mapped
+echo "=====> Fetching uniquely mapped reads"
+ for file in `ls *.ex.bam`
+  do
+   echo ${file}
+   outputname=`basename $file | sed -e "s/.ex.bam/.MAPQ.bam/"`
+   echo ${outputname}
+   (samtools view -H $file; samtools view -F 2308 $file | grep -w 'NH:i:1') | samtools view -bS - > "$outputname"
+  done
+echo "=====> Finished fetching uniquely mapped reads"
+
+
+## Counting the number of reads per sample with and without (i) MAPQ filtering, (ii) rRNA removal, (iii) mapped and unmapped
+for file in `ls *.MAPQ.bam`
+    do
+        basename=`echo ${file} | sed "s/.bam.MAPQ.bam//g"`
+        starout=`echo ${basename}"Aligned.sortedByCoord.out.bam"`
+        primary=`echo ${basename}".Primary.bam"`
+        worrna=`echo ${basename}".bam.ex.bam"`
+        mapqout=`echo ${basename}".bam.MAPQ.bam"`
+
+        count1=`samtools view -c ${starout}`
+        count2=`samtools view -c ${primary}`
+        count3=`samtools view -c ${worrna}`
+        count4=`samtools view -c ${mapqout}`
+
+        echo ${basename} ${count1} ${count2} ${count3} ${count4} | sed "s/ /\t/g"
+    done
+
+cd ${WORKDIR}
 
 ```
+
+&nbsp;
+
+
+## Counting reads per gene
+```{bash}
+module add HTSeq/0.6.1
+
+WORKDIR="path_to_working_directory"
+FQDIR="path_to_fastq_files"
+TRIMDIR="path_to_trimmed_fastq_files"
+STARDIR="path_to_star_alignment_output"
+
+echo "Counting reads per gene"
+cd ${STARDIR}
+
+ls *.MAPQ.bam | xargs -I % -n 1 -P 36 sh -c 'echo %; htseq-count -f bam -r pos -s reverse -t gene -i gene_name -m intersection-strict % /work/RESOURCES/DATABASES/MM10_GRCm38p6_GENCODEvM17_STAR/gencode.vM17.protein_coding.gtf > %.count;'
+
+echo "Finished COUNTS"
+cd ${WORKDIR}
+
+
+
+
+## Remove list lines from HTseq count
+
+CNTDIR="path_to_counts_directory"
+
+cd ${CNTDIR}
+
+for file in `ls *.count`
+    do
+        newname=`basename $file | sed -e "s/.bam.MAPQ.bam.count/.LastLinesRem.txt/"`
+        head -n -5 $file > "$newname"
+        echo $file
+        echo $newname
+    done
+
+```
+
