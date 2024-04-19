@@ -198,7 +198,6 @@ cd ${WORKDIR}
 
 
 ## Remove list lines from HTseq count
-
 CNTDIR="path_to_counts_directory"
 
 cd ${CNTDIR}
@@ -209,6 +208,39 @@ for file in `ls *.count`
         head -n -5 $file > "$newname"
         echo $file
         echo $newname
+    done
+
+```
+
+&nbsp;
+
+## Generate track files
+```{bash}
+module purge && module load shared slurm
+module load python/3.6.1-2-anaconda
+module load samtools/1.6
+module load star/2.5.2b
+module load RSeQC/2.6.4
+module load gatk/3.7
+module load UCSC_userApps/v317
+module load homer/4.9
+
+fetchChromSizes mm10 > mm10.chrom.sizes
+
+for i in *.MAPQ.bam
+    do 
+        makeTagDirectory $i"TagDir" $i -keepAll
+        makeUCSCfile $i"TagDir" -o $i"TagDir"/$i'.POS.bedGraph' -fsize 1e50 -res 10 -norm 1e7 -strand +
+        makeUCSCfile $i"TagDir" -o $i"TagDir"/$i'.NEG.bedGraph' -fsize 1e50 -res 10 -norm 1e7 -strand -
+        cd $i"TagDir"
+        gunzip -c $i'.POS.bedGraph'.gz > $i'.POS.bedGraph'
+        gunzip -c $i'.NEG.bedGraph'.gz > $i'.NEG.bedGraph'
+        perl ./../removeOutOfBoundsReadsFixed.pl $i'.POS.bedGraph' mm10 -chromSizes ../mm10.chrom.sizes > $i'.POS.fix.bedGraph'
+        perl ./../removeOutOfBoundsReadsFixed.pl $i'.NEG.bedGraph' mm10 -chromSizes ../mm10.chrom.sizes > $i'.NEG.fix.bedGraph'
+        bedGraphToBigWig $i'.POS.fix.bedGraph' ../mm10.chrom.sizes $i.POS.bw
+        bedGraphToBigWig $i'.NEG.fix.bedGraph' ../mm10.chrom.sizes $i.NEG.bw
+
+        cd ..
     done
 
 ```
