@@ -5,4 +5,4 @@ This repository hosts the code used for bulk RNA-seq data analysis starting from
 
 **B) [Differential Gene Expression](B_DIFFERENTIAL_GENE_EXPRESSION.MD)**
 
-**C) [WGCNA]()**
+**C) [WGCNA](C_WGCNA.md)**
